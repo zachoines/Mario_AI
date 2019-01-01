@@ -1,4 +1,5 @@
 # Importing the libraries
+import os
 import numpy as np
 import torch
 import torch.nn as nn
@@ -46,18 +47,18 @@ class CNN(nn.Module):
 
     def init_weights(self, m):
         #torch.nn.init.normal_()
-        torch.nn.init.kaiming_uniform_(m.weight)
         m.bias.data.fill_(0.01)
-
+        torch.nn.init.kaiming_uniform_(m.weight)
+        
     # Get the number of neurons in the flattening layer
     def count_neurons(self, image_dim):
         # here we create a fake image in order find the number of neurons (Channels, hight, width)
         # randomly generate values representing an image
         x = torch.rand(1, *image_dim)
+        
         # Apply convolutions to the input image
         # Apply max pooling to the resulting feature maps with kernel size of 3 and stride of 2
         # Then activate the neurons using ReLU function, reducing linearity in the pooled feature maps
-
         x = F.max_pool2d(F.relu(self.convolution1(x)), 3, 2)
         x = F.max_pool2d(F.relu(self.convolution2(x)), 3, 2)
         x = F.max_pool2d(F.relu(self.convolution3(x)), 3, 2)
@@ -162,8 +163,23 @@ env = preprocess.GrayScaleImage(env, height = 128, width = 128, grayscale = True
 env = wrappers.Monitor(env, "./Super_Mario_AI/videos", force = True, write_upon_reset=True)
 number_actions = env.action_space.n
 
-# Construct model
+# Construct/Load a model
 cnn = CNN(number_actions)
+optimizer = optim.Adam(cnn.parameters(), lr = 0.001)
+loss = nn.MSELoss()
+last_epoch = 1
+
+# If there is a previous save 
+if os.path.exists("./Super_Mario_AI/Model/model.pth"):  
+    checkpoint = torch.load("./Super_Mario_AI/Model/model.pth")
+    cnn.load_state_dict(checkpoint['model_state_dict'])
+    optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
+    last_epoch = checkpoint['epoch']
+    loss = checkpoint['loss']
+
+cnn.eval()
+
+# Build the body
 softmax_body = SoftmaxBody(T = .80) # Temperature value dictates exploration
 ai = AI(brain = cnn, body = softmax_body)
 
@@ -208,10 +224,8 @@ ma = MA(100)
 
 
 # Training the AI
-loss = nn.MSELoss()
-optimizer = optim.Adam(cnn.parameters(), lr = 0.001)
-nb_epochs = 1000
-for epoch in range(1, nb_epochs + 1):
+start = last_epoch
+for epoch in range(start, 1000):
     memory.run_steps(200)
     for batch in memory.sample_batch(128):
         inputs, Q_Values = eligibility_trace(batch)
@@ -229,7 +243,17 @@ for epoch in range(1, nb_epochs + 1):
     ma.add(rewards_steps)
     avg_reward = ma.average()
     print("Epoch: %s, Average Reward: %s" % (str(epoch), str(avg_reward)))
+    
+    # Save the Model 
+    torch.save({
+        'epoch': epoch,
+        'model_state_dict': cnn.state_dict(),
+        'optimizer_state_dict': optimizer.state_dict(),
+        'loss': loss
+        }, "./Super_Mario_AI/Model/model.pth")
+
 
 # Closing the Mario environment
 env.close() 
+
 
