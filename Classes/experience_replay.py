@@ -2,6 +2,7 @@
 
 # Importing the libraries
 import numpy as np
+import random
 from collections import namedtuple, deque
 
 # Defining one Step
@@ -24,8 +25,11 @@ class NStepProgress:
         history = deque()
         reward = 0.0
         while True:
-            # Feed the state into the network, return the suggested action
             action = self.ai(np.array([state]))[0][0]
+            # Feed the state into the network, return the suggested action
+            if random.random() < .05:
+                action = random.randint(0, self.env.action_space.n - 1)
+
             # Apply the action in the environment
             next_state, r, is_done, _ = self.env.step(action)
             # self.env.render()

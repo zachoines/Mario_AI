@@ -66,16 +66,16 @@ number_actions = env.action_space.n
 
 # Construct/Load a model
 cnn = CNN(number_actions)
-optimizer = optim.Adam(cnn.parameters(), lr = 0.001)
+optimizer = optim.Adam(cnn.parameters(), lr = 0.005)
 loss = nn.MSELoss()
 last_epoch = 1
 
 # Build the body
-softmax_body = SoftmaxBody(T = .80) # Temperature value dictates exploration
+softmax_body = SoftmaxBody(T = .7) # Temperature value dictates exploration
 ai = AI(brain = cnn, body = softmax_body)
 
 # Setting up Experience Replay
-n_steps = NStepProgress(env = env, ai = ai, n_step = 10)
+n_steps = NStepProgress(env = env, ai = ai, n_step = 5)
 memory = ReplayMemory(n_steps = n_steps, capacity = 1000)
 
 # If there is a previous save 
@@ -129,7 +129,7 @@ ma = MA(100)
 start = last_epoch
 for epoch in range(start, 10000):
     memory.run_steps(100)
-    for batch in memory.sample_batch(32):
+    for batch in memory.sample_batch(128):
         inputs, Q_Values = eligibility_trace(batch)
         inputs, Q_Values = Variable(inputs), Variable(Q_Values)
 

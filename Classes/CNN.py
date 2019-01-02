@@ -19,14 +19,14 @@ class CNN(nn.Module):
 
         # first input to the network will have one channel of black and white images, with 32 feature detectors
         # With a feature detector that is 5 * 5 kernel
-        self.convolution1 = nn.Conv2d(in_channels = 1, out_channels = 16, kernel_size = 5)
+        self.convolution1 = nn.Conv2d(in_channels = 1, out_channels = 32, kernel_size = 5)
         # Now we have 32 inputs to the next layer, which are the output feature detectors from the previous network
         # Then we utilize a new kernel size to narrow down features
-        self.convolution2 = nn.Conv2d(in_channels = 16, out_channels = 32, kernel_size = 3)
+        self.convolution2 = nn.Conv2d(in_channels = 32, out_channels = 32, kernel_size = 3)
         self.convolution3 = nn.Conv2d(in_channels = 32, out_channels = 64, kernel_size = 2)
         # now we flaten the pixels
-        self.fc1 = nn.Linear(in_features = self.count_neurons((1, 128, 128)), out_features = 96)
-        self.fc2 = nn.Linear(in_features = 96, out_features = number_actions)
+        self.fc1 = nn.Linear(in_features = self.count_neurons((1, 128, 128)), out_features = 128)
+        self.fc2 = nn.Linear(in_features = 128, out_features = number_actions)
 
         self.init_weights(self.convolution1)
         self.init_weights(self.convolution2)
