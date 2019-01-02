@@ -73,6 +73,7 @@ class CNN(nn.Module):
         # Fully connected hidden layer neural network. Utilizing a linear transmission of the data, then break up the linearity with ReLU
         x = F.relu(self.fc1(x))
 
+
         # Output layer with Q-Values
         x = self.fc2(x)
         return x

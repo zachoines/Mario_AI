@@ -76,7 +76,7 @@ ai = AI(brain = cnn, body = softmax_body)
 
 # Setting up Experience Replay
 n_steps = NStepProgress(env = env, ai = ai, n_step = 5)
-memory = ReplayMemory(n_steps = n_steps, capacity = 1000)
+memory = ReplayMemory(n_steps = n_steps, capacity = 10000)
 
 # If there is a previous save 
 if os.path.exists("./Super_Mario_AI/Model/model.pth"):  

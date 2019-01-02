@@ -26,16 +26,25 @@ class NStepProgress:
         reward = 0.0
         while True:
             action = self.ai(np.array([state]))[0][0]
+            
             # Feed the state into the network, return the suggested action
-            if random.random() < .05:
+
+            # Add 5% noise to action selection
+            if random.random() <= .05:
                 action = random.randint(0, self.env.action_space.n - 1)
 
             # Apply the action in the environment
             next_state, r, is_done, _ = self.env.step(action)
+
             # self.env.render()
+            
+            # For this env, rewards are high, scale them down a bit.
+            r = (r * 0.01)
             reward += r
+            
             # Build our N-Step history
             history.append(Step(state = state, action = action, reward = r, done = is_done))
+            
             # Shrink history if too long
             while len(history) > self.n_step + 1:
                 history.popleft()

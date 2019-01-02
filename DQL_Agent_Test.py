@@ -62,6 +62,7 @@ while not is_done:
     next_state, r, is_done, _ = env.step(action)
     env.render()
     state = next_state
+    r = .01 * r
     reward += r
 
 print("Reward: %s", str(reward))
