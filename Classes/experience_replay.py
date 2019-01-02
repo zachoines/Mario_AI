@@ -28,7 +28,7 @@ class NStepProgress:
             action = self.ai(np.array([state]))[0][0]
             # Apply the action in the environment
             next_state, r, is_done, _ = self.env.step(action)
-            self.env.render()
+            # self.env.render()
             reward += r
             # Build our N-Step history
             history.append(Step(state = state, action = action, reward = r, done = is_done))
