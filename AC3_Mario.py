@@ -1,19 +1,24 @@
-# Importing the packages for OpenAI and Doom
-import gym, time, random, threading
+# import Tensor flow and other scientific packages
+import time, random, threading
+import numpy as np
+import tensorflow as tf
+from tensorflow.keras.models import *
+import tensorflow.keras.layers
+from tensorflow.keras import backend as K
 
+# Importing the packages for OpenAI and MARIO
+import gym
 from gym import wrappers
 from nes_py.wrappers import BinarySpaceToDiscreteSpaceEnv
 import gym_super_mario_bros
 from gym_super_mario_bros.actions import SIMPLE_MOVEMENT
 
-import numpy as np
-import tensorflow as tf
-
-from tensorflow.keras.models import *
-import tensorflow.keras.layers
-from tensorflow.keras import backend as K
+# Import other classes
+from Wrappers import preprocess
 
 #-- constants
+# TODO::Place these globals into their own hyperparameter class
+ 
 ENV = 'SuperMarioBros-v0'
 
 RUN_TIME = 30
@@ -37,7 +42,6 @@ LOSS_V = .5			# v loss coefficient
 LOSS_ENTROPY = .01 	# entropy coefficient
 IMAGE_SHAPE = (1, 128, 128)
 
-
 FRAME_NUM = 100
 HIGHT = 128
 WIDTH = 128
@@ -52,6 +56,7 @@ INPUT_SIZE = PIXEL_NUM
 
 #---------
 class MarioBrain:
+
 	train_queue = [ [], [], [], [], [] ]	# s, a, r, s', s' terminal mask
 	lock_queue = threading.Lock()
 
@@ -267,9 +272,13 @@ class Environment(threading.Thread):
 
 	def __init__(self, render=False, eps_start=EPS_START, eps_end=EPS_STOP, eps_steps=EPS_STEPS):
 		threading.Thread.__init__(self)
-
 		self.render = render
+
+		# Make the super mario gym environment and apply wrappers
 		self.env = gym.make(ENV)
+		self.env = BinarySpaceToDiscreteSpaceEnv(self.env, SIMPLE_MOVEMENT)
+		self.env = preprocess.GrayScaleImage(self.env, height = HIGHT, width = WIDTH, grayscale = True)
+		self.env = wrappers.Monitor(self.env, "./Super_Mario_AI/videos", force = True, write_upon_reset=True)
 		self.agent = Agent(eps_start, eps_end, eps_steps)
 
 	def runEpisode(self):
@@ -320,11 +329,11 @@ class Optimizer(threading.Thread):
 
 #-- main
 env_test = Environment(render=True, eps_start=0., eps_end=0.)
-NUM_STATE = env_test.env.observation_space.shape[0]
+NUM_STATE = env_test.env.observation_space.shape
 NUM_ACTIONS = env_test.env.action_space.n
 NONE_STATE = np.zeros(NUM_STATE)
 
-MarioBrain = Brain()	# MarioBrain is global in A3C
+MarioBrain = MarioBrain()	# MarioBrain is global in A3C
 
 envs = [Environment() for i in range(THREADS)]
 opts = [Optimizer() for i in range(OPTIMIZERS)]
