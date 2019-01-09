@@ -56,11 +56,11 @@ class MA:
 
 
 # Get and build our test environment
-env = gym_super_mario_bros.make('SuperMarioBros-v0')
+env = gym_super_mario_bros.make('SuperMarioBros2-v0')
 
 # env = BinarySpaceToDiscreteSpaceEnv(env, COMPLEX_MOVEMENT)
 env = BinarySpaceToDiscreteSpaceEnv(env, SIMPLE_MOVEMENT)
-env = preprocess.GrayScaleImage(env, height = 128, width = 128, grayscale = True)
+env = preprocess.GrayScaleImage(env, height = 64, width = 64, grayscale = True)
 env = wrappers.Monitor(env, "./Super_Mario_AI/videos", force = True, write_upon_reset=True)
 number_actions = env.action_space.n
 
@@ -75,8 +75,8 @@ softmax_body = SoftmaxBody(T = .7) # Temperature value dictates exploration
 ai = AI(brain = cnn, body = softmax_body)
 
 # Setting up Experience Replay
-n_steps = NStepProgress(env = env, ai = ai, n_step = 5)
-memory = ReplayMemory(n_steps = n_steps, capacity = 10000)
+n_steps = NStepProgress(env = env, ai = ai, n_step = 10)
+memory = ReplayMemory(n_steps = n_steps, capacity = 100000)
 
 # If there is a previous save 
 if os.path.exists("./Super_Mario_AI/Model/model.pth"):  
@@ -128,8 +128,8 @@ ma = MA(100)
 # Training the AI
 start = last_epoch
 for epoch in range(start, 10000):
-    memory.run_steps(100)
-    for batch in memory.sample_batch(128):
+    memory.run_steps(200)
+    for batch in memory.sample_batch(64):
         inputs, Q_Values = eligibility_trace(batch)
         inputs, Q_Values = Variable(inputs), Variable(Q_Values)
 

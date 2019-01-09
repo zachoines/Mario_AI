@@ -26,7 +26,7 @@ env = gym_super_mario_bros.make('SuperMarioBros-v0')
 
 # env = BinarySpaceToDiscreteSpaceEnv(env, COMPLEX_MOVEMENT)
 env = BinarySpaceToDiscreteSpaceEnv(env, SIMPLE_MOVEMENT)
-env = preprocess.GrayScaleImage(env, height = 128, width = 128, grayscale = True)
+env = preprocess.GrayScaleImage(env, height = 64, width = 64, grayscale = True)
 env = wrappers.Monitor(env, "./Super_Mario_AI/videos", force = True, write_upon_reset=True)
 number_actions = env.action_space.n
 

@@ -19,18 +19,20 @@ class CNN(nn.Module):
 
         # first input to the network will have one channel of black and white images, with 32 feature detectors
         # With a feature detector that is 5 * 5 kernel
-        self.convolution1 = nn.Conv2d(in_channels = 1, out_channels = 32, kernel_size = 5)
+        self.convolution1 = nn.Conv2d(in_channels = 1, out_channels = 64, kernel_size = 3)
         # Now we have 32 inputs to the next layer, which are the output feature detectors from the previous network
         # Then we utilize a new kernel size to narrow down features
-        self.convolution2 = nn.Conv2d(in_channels = 32, out_channels = 32, kernel_size = 3)
-        self.convolution3 = nn.Conv2d(in_channels = 32, out_channels = 64, kernel_size = 2)
+        self.convolution2 = nn.Conv2d(in_channels = 64, out_channels = 64, kernel_size = 3)
+        self.convolution3 = nn.Conv2d(in_channels = 64, out_channels = 64, kernel_size = 3)
+        self.convolution4 = nn.Conv2d(in_channels = 64, out_channels = 64, kernel_size = 3)
         # now we flaten the pixels
-        self.fc1 = nn.Linear(in_features = self.count_neurons((1, 128, 128)), out_features = 128)
-        self.fc2 = nn.Linear(in_features = 128, out_features = number_actions)
+        self.fc1 = nn.Linear(in_features = self.count_neurons((1, 64, 64)), out_features = 256)
+        self.fc2 = nn.Linear(in_features = 256, out_features = number_actions)
 
         self.init_weights(self.convolution1)
         self.init_weights(self.convolution2)
         self.init_weights(self.convolution3)
+        self.init_weights(self.convolution4)
         self.init_weights(self.fc1)
         self.init_weights(self.fc2)
     
@@ -53,6 +55,7 @@ class CNN(nn.Module):
         x = F.max_pool2d(F.relu(self.convolution1(x)), 3, 2)
         x = F.max_pool2d(F.relu(self.convolution2(x)), 3, 2)
         x = F.max_pool2d(F.relu(self.convolution3(x)), 3, 2)
+        x = F.max_pool2d(F.relu(self.convolution4(x)), 3, 2)
 
         # put all the pixels into one large array of pixels, in what is called the flattening layer
         return x.data.view(1, -1).size(1)
@@ -66,6 +69,7 @@ class CNN(nn.Module):
         x = F.max_pool2d(F.relu(self.convolution1(state)), 3, 2)
         x = F.max_pool2d(F.relu(self.convolution2(x)), 3, 2)
         x = F.max_pool2d(F.relu(self.convolution3(x)), 3, 2)
+        x = F.max_pool2d(F.relu(self.convolution4(x)), 3, 2)
 
         # Flatten the third convolutional
         x = x.view(x.size(0), -1)
