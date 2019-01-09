@@ -125,6 +125,7 @@ class MarioBrain:
 		return model
 
 	def _build_graph(self, model):
+
 		s_t = tf.placeholder(tf.float32, shape=(None, NUM_STATE))
 		a_t = tf.placeholder(tf.float32, shape=(None, NUM_ACTIONS))
 		r_t = tf.placeholder(tf.float32, shape=(None, 1)) # not immediate, but discounted n step reward
