@@ -16,13 +16,25 @@ class GrayScaleImage(ObservationWrapper):
         self.grayscale = grayscale
         self.crop = crop
         n_channels = 1 if self.grayscale else 3
-        self.observation_space = Box(0.0, 1.0, [n_channels, height, width])
+        self.observation_space = Box(0.0, 1.0, [height, width, n_channels])
 
     def _observation(self, img):
         img = self.crop(img)
         img = imresize(img, self.img_size)
+
+        # Convert to grayscale if enabled using mean method
         if self.grayscale:
-            img = img.mean(-1, keepdims = True)
-        img = np.transpose(img, (2, 0, 1))
-        img = img.astype('float32') / 255.
+            img = np.mean(img, axis=-1,keepdims=1)
+            # img = np.max(img, axis = -1, keepdims = 1) / 2 +  np.min(img, axis = -1, keepdims = 1) / 2
+
         return img
+
+
+
+
+        # img = self.crop(img)
+        # img = tf.image.resize_images(img, self.img_size)
+        # if self.grayscale:
+        #     img = tf.image.rgb_to_grayscale(img)
+        # return img
+

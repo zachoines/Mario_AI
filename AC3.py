@@ -1,59 +1,47 @@
-# import Tensor flow and other scientific packages
-import time, random, threading
+# OpenGym CartPole-v0 with A3C on GPU
+# -----------------------------------
+#
+# A3C implementation with GPU optimizer threads.
+# 
+# Made as part of blog series Let's make an A3C, available at
+# https://jaromiru.com/2017/02/16/lets-make-an-a3c-theory/
+#
+# author: Jaromir Janisch, 2017
+
 import numpy as np
 import tensorflow as tf
-from tensorflow.keras.models import *
-import tensorflow.keras.layers
-from tensorflow.keras import backend as K
-from tensorflow.keras.layers import Lambda
 
-# Importing the packages for OpenAI and MARIO
-import gym
-from gym import wrappers
-from nes_py.wrappers import BinarySpaceToDiscreteSpaceEnv
-import gym_super_mario_bros
-from gym_super_mario_bros.actions import SIMPLE_MOVEMENT
+import gym, time, random, threading
 
-# Import other classes
-from Wrappers import preprocess
+from keras.models import *
+from keras.layers import *
+from keras import backend as K
 
 #-- constants
-# TODO::Place these globals into their own hyperparameter class
- 
-ENV = 'SuperMarioBros-v0'
+ENV = 'CartPole-v0'
 
-RUN_TIME = 360
+RUN_TIME = 30
 THREADS = 8
 OPTIMIZERS = 2
 THREAD_DELAY = 0.001
 
 GAMMA = 0.99
 
-N_STEP_RETURN = 10
+N_STEP_RETURN = 8
 GAMMA_N = GAMMA ** N_STEP_RETURN
 
 EPS_START = 0.4
 EPS_STOP  = .15
 EPS_STEPS = 75000
 
-MIN_BATCH = 128
+MIN_BATCH = 32
 LEARNING_RATE = 5e-3
 
 LOSS_V = .5			# v loss coefficient
 LOSS_ENTROPY = .01 	# entropy coefficient
 
-FRAME_NUM = 100
-HIGHT = 64
-WIDTH = 64
-CHANNELS = 1
-
-STEP_SIZE = 10
-TIME_STEPS = FRAME_NUM
-
-
 #---------
-class MarioBrain:
-
+class Brain:
 	train_queue = [ [], [], [], [], [] ]	# s, a, r, s', s' terminal mask
 	lock_queue = threading.Lock()
 
@@ -72,72 +60,25 @@ class MarioBrain:
 
 	def _build_model(self):
 
-		# Define Convolution 1
-		self.conv1 = tf.keras.layers.Conv2D(filters = 32, kernel_size = [5, 5], padding = "valid", activation = "relu", name = "conv1")
-		self.maxPool1 = tf.keras.layers.MaxPooling2D(pool_size = (3, 3), name = "maxPool1")
-		
-		# define Convolution 2
-		self.conv2 = tf.keras.layers.Conv2D(filters = 64, kernel_size = [3, 3], padding = "valid", activation = "relu", name = "conv2")
-		self.maxPool2 = tf.keras.layers.MaxPooling2D(pool_size=(3, 3), name = "maxPool2")
-		
-		# define Convolution 3
-		self.conv3 = tf.keras.layers.Conv2D(filters = 96, kernel_size = [2, 2], padding = "valid", activation = "relu", name = "conv3")
-		self.maxPool3 = tf.keras.layers.MaxPooling2D(pool_size=(3, 3), name = "maxPool3")
-		
-		# Flatten the output for LSTM Hidden Layer
-		# TODO:: Debate the usefullness of a fully connected hidden layer
-		self.flattened = tf.keras.layers.Flatten(name = "flattening_layer")
-		self.hiddenLayer = tf.keras.layers.Dense(512, activation = "relu", name = "hidden_layer")
+		l_input = Input( batch_shape=(None, NUM_STATE) )
+		l_dense = Dense(16, activation='relu')(l_input)
 
-		# define LSTM layer
-		self.lstmLayer = tf.keras.layers.LSTM(128, name = "LSTM_layer")
+		out_actions = Dense(NUM_ACTIONS, activation='softmax')(l_dense)
+		out_value   = Dense(1, activation='linear')(l_dense)
 
-		# Output Layer consisting of an Actor and a Critic
-		self._value = tf.keras.layers.Dense(1, activation = "relu", name = "value_layer")
-		self._policy = tf.keras.layers.Dense(NUM_ACTIONS, activation = "softmax", name = "policy_layer")
-
-		# Define the shape of out input layer
-		input_def = tf.keras.layers.Input(shape = (HIGHT, WIDTH, CHANNELS), name = "input_layer")
-
-		# Define the forward pass for the convolutional and hidden layers
-		conv1_out = self.conv1(input_def)
-		maxPool1_out = self.maxPool1(conv1_out)
-		conv2_out = self.conv2(maxPool1_out)
-		maxPool2_out = self.maxPool2(conv2_out)
-		conv3_out = self.conv3(maxPool2_out)
-		maxPool3_out = self.maxPool3(conv3_out)
-		flattened_out = self.flattened(maxPool3_out)
-		hidden_out = self.hiddenLayer(flattened_out)
-
-		def reshape_layer(x):
-			reshape = tf.expand_dims(x, 0, 'reshape_layer')
-			return reshape
-
-		reshaped_hidden_out = tf.keras.layers.Lambda(reshape_layer)(hidden_out)
-		
-		# Now enter this network into a LSTM NETWORK 
-		lstm_output = self.lstmLayer(reshaped_hidden_out)
-
-		# Actor and the Critic outputs
-		out_value = self._value(lstm_output)
-		out_actions = self._policy(lstm_output)
-
-		# Final model
-		model = tf.keras.Model(inputs = [input_def], outputs = [out_actions, out_value])
-
+		model = Model(inputs=[l_input], outputs=[out_actions, out_value])
 		model._make_predict_function()	# have to initialize before threading
 
 		return model
 
 	def _build_graph(self, model):
-
-		s_t = tf.placeholder(tf.float32, shape = (None, HIGHT, WIDTH, CHANNELS))
-		a_t = tf.placeholder(tf.float32, shape = (None, NUM_ACTIONS))
-		r_t = tf.placeholder(tf.float32, shape = (None, 1)) # not immediate, but discounted n step reward
+		s_t = tf.placeholder(tf.float32, shape=(None, NUM_STATE))
+		a_t = tf.placeholder(tf.float32, shape=(None, NUM_ACTIONS))
+		r_t = tf.placeholder(tf.float32, shape=(None, 1)) # not immediate, but discounted n step reward
 		
 		p, v = model(s_t)
 
-		log_prob = tf.log( tf.reduce_sum(p * a_t, axis = 1, keep_dims=True) + 1e-10)
+		log_prob = tf.log( tf.reduce_sum(p * a_t, axis=1, keep_dims=True) + 1e-10)
 		advantage = r_t - v
 
 		loss_policy = - log_prob * tf.stop_gradient(advantage)									# maximize policy
@@ -145,8 +86,8 @@ class MarioBrain:
 		entropy = LOSS_ENTROPY * tf.reduce_sum(p * tf.log(p + 1e-10), axis=1, keep_dims=True)	# maximize entropy (regularization)
 
 		loss_total = tf.reduce_mean(loss_policy + loss_value + entropy)
-		# .RMSPropOptimizer(LEARNING_RATE, decay=.99)
-		optimizer = tf.train.AdamOptimizer(LEARNING_RATE)
+
+		optimizer = tf.train.RMSPropOptimizer(LEARNING_RATE, decay=.99)
 		minimize = optimizer.minimize(loss_total)
 
 		return s_t, a_t, r_t, minimize
@@ -155,7 +96,7 @@ class MarioBrain:
 		if len(self.train_queue[0]) < MIN_BATCH:
 			time.sleep(0)	# yield
 			return
-
+		# grab a batch, empty Queue
 		with self.lock_queue:
 			if len(self.train_queue[0]) < MIN_BATCH:	# more thread could have passed without lock
 				return 									# we can't yield inside lock
@@ -163,29 +104,19 @@ class MarioBrain:
 			s, a, r, s_, s_mask = self.train_queue
 			self.train_queue = [ [], [], [], [], [] ]
 
-		s = (np.array(s))
+		s = np.vstack(s)
 		a = np.vstack(a)
 		r = np.vstack(r)
-		s_ = (np.array(s_))
-
+		s_ = np.vstack(s_)
 		s_mask = np.vstack(s_mask)
 
-		if len(s) > 5 * MIN_BATCH: print("Optimizer alert! Minimizing batch of %d" % len(s))
-		v = None
-		if s_.shape == (HIGHT, WIDTH, CHANNELS):
-			s_ = np.expand_dims(s_, axis=0)
-			v = self.predict_v(s_)
-		else:
-			v = self.predict_v(s_)
+		if len(s) > 5*MIN_BATCH: print("Optimizer alert! Minimizing batch of %d" % len(s))
 
-		if s.shape == (HIGHT, WIDTH, CHANNELS):
-			s = np.expand_dims(s, axis=0)
-	
-			
+		v = self.predict_v(s_)
 		r = r + GAMMA_N * v * s_mask	# set v to 0 where s_ is terminal state
 		
 		s_t, a_t, r_t, minimize = self.graph
-		self.session.run(minimize, feed_dict = {s_t: s, a_t: a, r_t: r})
+		self.session.run(minimize, feed_dict={s_t: s, a_t: a, r_t: r})
 
 	def train_push(self, s, a, r, s_):
 		with self.lock_queue:
@@ -203,12 +134,12 @@ class MarioBrain:
 	def predict(self, s):
 		with self.default_graph.as_default():
 			p, v = self.model.predict(s)
-			return  p, v
+			return p, v
 
 	def predict_p(self, s):
 		with self.default_graph.as_default():
 			p, v = self.model.predict(s)		
-		return p
+			return p
 
 	def predict_v(self, s):
 		with self.default_graph.as_default():
@@ -226,6 +157,7 @@ class Agent:
 		self.memory = []	# used for n_step return
 		self.R = 0.
 
+    # Epsilon greedy policy choice
 	def getEpsilon(self):
 		if(frames >= self.eps_steps):
 			return self.eps_end
@@ -241,7 +173,7 @@ class Agent:
 
 		else:
 			s = np.array([s])
-			p = MarioBrain.predict_p(s)[0]
+			p = brain.predict_p(s)[0]
 
 			# a = np.argmax(p)
 			a = np.random.choice(NUM_ACTIONS, p=p)
@@ -255,20 +187,28 @@ class Agent:
 
 			return s, a, self.R, s_
 
+        # def get_sample(memory, n):
+        #     r = 0.
+        #     for i in range(n):
+        #         r += memory[i][2] * (GAMMA ** i)
+        
+        #     s, a, _, _  = memory[0]
+        #     _, _, _, s_ = memory[n-1]
+        
+        #     return s, a, r, s_
+
 		a_cats = np.zeros(NUM_ACTIONS)	# turn action into one-hot representation
 		a_cats[a] = 1 
-
-
-		# Dont add states that are in invalid formate
 		self.memory.append( (s, a_cats, r, s_) )
 
 		self.R = ( self.R + r * GAMMA_N ) / GAMMA
 
+        # Deplete the training Q if a terminal state is found
 		if s_ is None:
 			while len(self.memory) > 0:
 				n = len(self.memory)
 				s, a, r, s_ = get_sample(self.memory, n)
-				MarioBrain.train_push(s, a, r, s_)
+				brain.train_push(s, a, r, s_)
 
 				self.R = ( self.R - self.memory[0][2] ) / GAMMA
 				self.memory.pop(0)		
@@ -277,7 +217,7 @@ class Agent:
 
 		if len(self.memory) >= N_STEP_RETURN:
 			s, a, r, s_ = get_sample(self.memory, N_STEP_RETURN)
-			MarioBrain.train_push(s, a, r, s_)
+			brain.train_push(s, a, r, s_)
 
 			self.R = self.R - self.memory[0][2]
 			self.memory.pop(0)	
@@ -290,17 +230,14 @@ class Environment(threading.Thread):
 
 	def __init__(self, render=False, eps_start=EPS_START, eps_end=EPS_STOP, eps_steps=EPS_STEPS):
 		threading.Thread.__init__(self)
-		self.render = render
 
-		# Make the super mario gym environment and apply wrappers
+		self.render = render
 		self.env = gym.make(ENV)
-		self.env = BinarySpaceToDiscreteSpaceEnv(self.env, SIMPLE_MOVEMENT)
-		self.env = preprocess.GrayScaleImage(self.env, height = HIGHT, width = WIDTH, grayscale = True)
-		# self.env = wrappers.Monitor(self.env, "./Super_Mario_AI/videos", force = True, write_upon_reset=True)
 		self.agent = Agent(eps_start, eps_end, eps_steps)
 
 	def runEpisode(self):
 		s = self.env.reset()
+
 		R = 0
 		while True:         
 			time.sleep(THREAD_DELAY) # yield 
@@ -312,7 +249,6 @@ class Environment(threading.Thread):
 
 			if done: # terminal state
 				s_ = None
-
 
 			self.agent.train(s, a, r, s_)
 
@@ -340,18 +276,18 @@ class Optimizer(threading.Thread):
 
 	def run(self):
 		while not self.stop_signal:
-			MarioBrain.optimize()
+			brain.optimize()
 
 	def stop(self):
 		self.stop_signal = True
 
 #-- main
-env_test = Environment(render = True, eps_start=0., eps_end=0.)
-NUM_STATE = env_test.env.observation_space.shape
+env_test = Environment(render=True, eps_start=0., eps_end=0.)
+NUM_STATE = env_test.env.observation_space.shape[0]
 NUM_ACTIONS = env_test.env.action_space.n
 NONE_STATE = np.zeros(NUM_STATE)
 
-MarioBrain = MarioBrain()	# MarioBrain is global in A3C
+brain = Brain()	# brain is global in A3C
 
 envs = [Environment() for i in range(THREADS)]
 opts = [Optimizer() for i in range(OPTIMIZERS)]
