@@ -35,11 +35,15 @@ class NStepProgress:
 
             # Apply the action in the environment
             next_state, r, is_done, _ = self.env.step(action)
+<<<<<<< HEAD
 
             # self.env.render()
             
             # For this env, rewards are high, scale them down a bit.
             r = (r * 0.01)
+=======
+            self.env.render()
+>>>>>>> fe7f8c01ea1de62ba8c881db137161011742d569
             reward += r
             
             # Build our N-Step history
