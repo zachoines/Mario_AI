@@ -22,7 +22,7 @@ from Wrappers import preprocess
  
 ENV = 'SuperMarioBros-v0'
 
-RUN_TIME = 360
+RUN_TIME = 1800
 THREADS = 8
 OPTIMIZERS = 2
 THREAD_DELAY = 0.001
@@ -31,10 +31,6 @@ GAMMA = 0.99
 
 N_STEP_RETURN = 10
 GAMMA_N = GAMMA ** N_STEP_RETURN
-
-EPS_START = 0.4
-EPS_STOP  = .15
-EPS_STEPS = 75000
 
 MIN_BATCH = 128
 LEARNING_RATE = 5e-3
@@ -49,6 +45,7 @@ CHANNELS = 1
 
 STEP_SIZE = 10
 TIME_STEPS = FRAME_NUM
+TEMPERATURE = .7
 
 
 #---------
@@ -218,35 +215,31 @@ class MarioBrain:
 #---------
 frames = 0
 class Agent:
-	def __init__(self, eps_start, eps_end, eps_steps):
-		self.eps_start = eps_start
-		self.eps_end   = eps_end
-		self.eps_steps = eps_steps
-
+	def __init__(self, temperature):
 		self.memory = []	# used for n_step return
 		self.R = 0.
+		self.temperature = temperature
 
-	def getEpsilon(self):
-		if(frames >= self.eps_steps):
-			return self.eps_end
-		else:
-			return self.eps_start + frames * (self.eps_end - self.eps_start) / self.eps_steps	# linearly interpolate
+	def sample(self, softmax):
+		EPSILON = 10e-16 # to avoid taking the log of zero
+		
+		(np.array(softmax) + EPSILON).astype('float64')
+		preds = np.log(softmax) / self.temperature
+		
+		exp_preds = np.exp(preds)
+		
+		preds = exp_preds / np.sum(exp_preds)
+		
+		probas = np.random.multinomial(1, preds, 1)
+		return probas[0]
 
-	def act(self, s):
-		eps = self.getEpsilon()			
-		global frames; frames = frames + 1
 
-		if random.random() < eps:
-			return random.randint(0, NUM_ACTIONS-1)
+	# Select action from a softmax probability vector at different temperatures
+	def act(self, s):	
+		p = MarioBrain.predict_p(s)[0]
+		a = self.sample(p)
+		return a
 
-		else:
-			s = np.array([s])
-			p = MarioBrain.predict_p(s)[0]
-
-			# a = np.argmax(p)
-			a = np.random.choice(NUM_ACTIONS, p=p)
-
-			return a
 	
 	def train(self, s, a, r, s_):
 		def get_sample(memory, n):
@@ -297,7 +290,7 @@ class Environment(threading.Thread):
 		self.env = BinarySpaceToDiscreteSpaceEnv(self.env, SIMPLE_MOVEMENT)
 		self.env = preprocess.GrayScaleImage(self.env, height = HIGHT, width = WIDTH, grayscale = True)
 		# self.env = wrappers.Monitor(self.env, "./Super_Mario_AI/videos", force = True, write_upon_reset=True)
-		self.agent = Agent(eps_start, eps_end, eps_steps)
+		self.agent = Agent(TEMPERATURE)
 
 	def runEpisode(self):
 		s = self.env.reset()
